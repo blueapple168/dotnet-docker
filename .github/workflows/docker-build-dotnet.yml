@@ -1,0 +1,154 @@
+name: Docker Build dotnet (KylinOS & UOS, amd64 only)
+on:
+  push:
+    branches: [ "main" ]
+    tags: [ 'v*.*.*' ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+env:
+  REGISTRY: ghcr.io
+  PLATFORMS: linux/amd64
+  # 定义全部8组构建项：context目录,镜像repo,tagname
+  BUILD_LIST: |
+    src/aspnet/8.0/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/aspnet;8.0
+    src/runtime-deps/8.0/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/runtime-deps;8.0
+    src/runtime/8.0/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/runtime;8.0
+    src/sdk/8.0/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/sdk;8.0
+    src/aspnet/8.0/uos/v20-1070a/amd64;blueapple168/dotnet-uos/aspnet;8.0
+    src/runtime-deps/8.0/uos/v20-1070a/amd64;blueapple168/dotnet-uos/runtime-deps;8.0
+    src/runtime/8.0/uos/v20-1070a/amd64;blueapple168/dotnet-uos/runtime;8.0
+    src/sdk/8.0/uos/v20-1070a/amd64;blueapple168/dotnet-uos/sdk;8.0
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+jobs:
+  discovery:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix_data: ${{ steps.gen_matrix.outputs.matrix_data }}
+      has_work: ${{ steps.gen_matrix.outputs.has_work }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@v45
+      - name: Generate build matrix decision
+        id: gen_matrix
+        run: |
+          CHANGED_FILES="${{ steps.changed-files.outputs.all_changed_files }}"
+          EVENT="${{ github.event_name }}"
+          REF_TYPE="${{ github.ref_type }}"
+          TARGET_ITEMS=()
+          # read build list env
+          while IFS=';' read -r ctx repo tagname; do
+            [[ -z "${ctx}" || -z "${repo}" || -z "${tagname}" ]] && continue
+            if [[ "${REF_TYPE}" == "tag" || "${EVENT}" == "workflow_dispatch" ]]; then
+              # tag / manual trigger: add all
+              TARGET_ITEMS+=("{\"context\":\"${ctx}\",\"repo\":\"${repo}\",\"tagname\":\"${tagname}\"}")
+            else
+              # push/pr:只要该context目录下有任意文件变更就构建
+              MATCH=0
+              while IFS= read -r file; do
+                [[ -z "${file}" ]] && continue
+                if [[ "${file}" == "${ctx}"/* ]]; then
+                  echo "✅ Directory changed: ${ctx} , changed file: ${file}"
+                  MATCH=1
+                  break
+                fi
+              done < <(echo "${CHANGED_FILES}")
+              if [[ "${MATCH}" -eq 1 ]]; then
+                TARGET_ITEMS+=("{\"context\":\"${ctx}\",\"repo\":\"${repo}\",\"tagname\":\"${tagname}\"}")
+              fi
+            fi
+          done <<< "$BUILD_LIST"
+          if [[ ${#TARGET_ITEMS[@]} -eq 0 ]]; then
+            MATRIX='{"build":[]}'
+            HAS_WORK="false"
+          else
+            ITEMS=$(printf "%s\n" "${TARGET_ITEMS[@]}" | jq -s '.')
+            MATRIX=$(jq -n --argjson items "${ITEMS}" '{"build": $items}' --compact-output)
+            HAS_WORK="true"
+          fi
+          echo "matrix_data=${MATRIX}" >> $GITHUB_OUTPUT
+          echo "has_work=${HAS_WORK}" >> $GITHUB_OUTPUT
+          echo "final matrix: ${MATRIX}"
+          echo "should build: ${HAS_WORK}"
+        env:
+          BUILD_LIST: ${{ env.BUILD_LIST }}
+  build:
+    needs: discovery
+    if: ${{ needs.discovery.outputs.has_work == 'true' }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix: ${{ fromJson(needs.discovery.outputs.matrix_data) }}
+      fail-fast: false
+    env:
+      CONTEXT_DIR: ${{ matrix.build.context }}
+      IMAGE_REPO: ${{ matrix.build.repo }}
+      IMG_TAG_NAME: ${{ matrix.build.tagname }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          qemu-version: latest
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+        with:
+          driver: docker-container
+          driver-opts: |
+            image=moby/buildkit:master
+      - name: Login to GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_REPO }}
+          tags: |
+            type=raw,value=${{ env.IMG_TAG_NAME }}
+            type=raw,value=${{ env.IMG_TAG_NAME }}-${{ github.sha }}
+      - name: Build and push
+        id: build-and-push
+        uses: docker/build-push-action@v7
+        with:
+          context: ${{ env.CONTEXT_DIR }}
+          platforms: ${{ env.PLATFORMS }}
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_REPO }}:buildcache
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_REPO }}:buildcache,mode=max
+          build-args: |
+            BUILDKIT_PROGRESS=plain
+      - name: Print built image info
+        run: |
+          IMG="${{ env.REGISTRY }}/${{ env.IMAGE_REPO }}:${{ env.IMG_TAG_NAME }}"
+          echo "Built image: ${IMG}"
+          echo "Digest: ${{ steps.build-and-push.outputs.digest }}"
+      - name: Validate amd64 container
+        run: |
+          IMG="${{ env.REGISTRY }}/${{ env.IMAGE_REPO }}:${{ env.IMG_TAG_NAME }}"
+          docker run --rm --platform linux/amd64 "${IMG}" bash -c "echo 'amd64 container validation OK'"
+      - name: Install cosign
+        if: ${{ github.event_name != 'pull_request' }}
+        uses: sigstore/cosign-installer@v3
+      - name: Keyless Sign Image
+        if: ${{ github.event_name != 'pull_request' }}
+        env:
+          COSIGN_EXPERIMENTAL: "1"
+        run: |
+          IMAGE_FULL="${{ env.REGISTRY }}/${{ env.IMAGE_REPO }}"
+          DIGEST="${{ steps.build-and-push.outputs.digest }}"
+          echo "Start signing ${IMAGE_FULL}@${DIGEST}"
+          cosign sign --yes "${IMAGE_FULL}@${DIGEST}"
