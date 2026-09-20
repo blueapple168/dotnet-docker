@@ -20,7 +20,7 @@ RUN dotnet_version=8.0.31 \
 FROM $REPO AS runtime
 
 # .NET Runtime version
-ENV DOTNET_VERSION=8.0.31
+ENV ASPNET_VERSION=8.0.31
 
 COPY --from=installer ["/dotnet", "/usr/share/dotnet"]
 
