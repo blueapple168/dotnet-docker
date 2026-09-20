@@ -35,7 +35,7 @@ RUN set -eux; \
         libstdc++ \
         zlib; \
     # 3. 修复 Python setuptools 版本问题
-    sed -i 's/Version: 39\.2\.0/Version: 2026.09.17/g' /usr/lib/python3.6/site-packages/setuptools-39.2.0.dist-info/METADATA 2>/dev/null || true; \
+    sed -i 's/Version: 39\.2\.0/Version: 2026.09.20/g' /usr/lib/python3.6/site-packages/setuptools-39.2.0.dist-info/METADATA 2>/dev/null || true; \
     # 4. 创建非 root 用户和用户组
     groupadd --gid=$APP_UID app; \
     useradd --no-log-init --uid=$APP_UID --gid=$APP_UID --create-home app; \
