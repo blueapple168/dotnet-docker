@@ -55,11 +55,12 @@ RUN dotnet help
 # Install PowerShell global tool
 RUN powershell_version=7.4.20 \
     && mkdir --parents /usr/share/powershell \
-    && dotnet tool install --add-source / --tool-path /usr/share/powershell --version $powershell_version PowerShell.Linux.x64 \
+    && dotnet tool install --add-source / --tool-path /usr/share/powershell --version $powershell_version PowerShell \
     && dotnet nuget locals all --clear \
-    && rm PowerShell.Linux.x64.$powershell_version.nupkg \
+    && rm -f PowerShell.Linux.x64.$powershell_version.nupkg \
     && ln -s /usr/share/powershell/pwsh /usr/bin/pwsh \
     && chmod 755 /usr/share/powershell/pwsh \
-    && chmod 755 /usr/share/powershell/.store/powershell.linux.alpine/$powershell_version/powershell.linux.alpine/$powershell_version/tools/*/any/pwsh \    
+    # Recursively find pwsh binaries and set executable permission (remove hard‑coded alpine path)
+    && find /usr/share/powershell/.store -name pwsh -exec chmod 755 {} \; \
     # To reduce image size, remove the copy nupkg that nuget keeps.
-    && find /usr/share/powershell -print | grep -i '.*[.]nupkg$' | xargs rm
+    && find /usr/share/powershell -name "*.nupkg" -delete
