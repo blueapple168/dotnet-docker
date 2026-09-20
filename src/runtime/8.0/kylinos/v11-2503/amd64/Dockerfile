@@ -2,24 +2,24 @@ ARG REPO=ghcr.io/blueapple168/dotnet-kylinos/runtime-deps:8.0
 
 # Installer image
 FROM $REPO AS installer
-# Retrieve .NET Runtime
-RUN dotnet_version=8.0.31 \
+# Retrieve ASP.NET Core
+RUN aspnetcore_version=8.0.31 \
     && curl --fail --show-error --location \
-        --remote-name https://builds.dotnet.microsoft.com/dotnet/Runtime/$dotnet_version/dotnet-runtime-$dotnet_version-linux-x64.tar.gz \
-        --remote-name https://builds.dotnet.microsoft.com/dotnet/checksums/$dotnet_version-sha.txt \
-    && sed -i 's/\r$//' $dotnet_version-sha.txt \
-    && sha512sum -c $dotnet_version-sha.txt --ignore-missing \
+        --remote-name https://builds.dotnet.microsoft.com/dotnet/aspnetcore/Runtime/$aspnetcore_version/aspnetcore-runtime-$aspnetcore_version-linux-x64.tar.gz \
+        --remote-name https://builds.dotnet.microsoft.com/dotnet/checksums/$aspnetcore_version-sha.txt \
+    && sed -i 's/\r$//' $aspnetcore_version-sha.txt \
+    && sha512sum -c $aspnetcore_version-sha.txt --ignore-missing \
     && mkdir --parents /dotnet \
-    && tar --gzip --extract --no-same-owner --file dotnet-runtime-$dotnet_version-linux-x64.tar.gz --directory /dotnet \
+    && tar --gzip --extract --no-same-owner --file aspnetcore-runtime-$aspnetcore_version-linux-x64.tar.gz --directory /dotnet ./shared/Microsoft.AspNetCore.App \
     && rm \
-        dotnet-runtime-$dotnet_version-linux-x64.tar.gz \
-        $dotnet_version-sha.txt
+        aspnetcore-runtime-$aspnetcore_version-linux-x64.tar.gz \
+        $aspnetcore_version-sha.txt
 
 # .NET runtime image
 FROM $REPO AS runtime
 
 # .NET Runtime version
-ENV DOTNET_VERSION=8.0.31
+ENV ASPNET_VERSION=8.0.31
 
 COPY --from=installer ["/dotnet", "/usr/share/dotnet"]
 
