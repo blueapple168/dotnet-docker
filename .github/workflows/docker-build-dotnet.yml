@@ -6,23 +6,26 @@ on:
   pull_request:
     branches: [ "main" ]
   workflow_dispatch:
+
 env:
   REGISTRY: ghcr.io
   PLATFORMS: linux/amd64
-  # 定义全部8组构建项：context目录,镜像repo,tagname
+  # context目录 ; 镜像repo ; 主tag(版本，src下的版本如8.0) ; os名称仅用于区分repo
   BUILD_LIST: |
-    src/aspnet/8.0/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/aspnet;8.0
-    src/runtime-deps/8.0/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/runtime-deps;8.0
-    src/runtime/8.0/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/runtime;8.0
-    src/sdk/8.0/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/sdk;8.0
-    src/aspnet/8.0/uos/v20-1070a/amd64;blueapple168/dotnet-uos/aspnet;8.0
-    src/runtime-deps/8.0/uos/v20-1070a/amd64;blueapple168/dotnet-uos/runtime-deps;8.0
-    src/runtime/8.0/uos/v20-1070a/amd64;blueapple168/dotnet-uos/runtime;8.0
-    src/sdk/8.0/uos/v20-1070a/amd64;blueapple168/dotnet-uos/sdk;8.0
+    ./src/aspnet/8.0/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/aspnet;8.0;kylinos
+    ./src/runtime-deps/8.0/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/runtime-deps;8.0;kylinos
+    ./src/runtime/8.0/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/runtime;8.0;kylinos
+    ./src/sdk/8.0/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/sdk;8.0;kylinos
+    ./src/aspnet/8.0/uos/v20-1070a/amd64;blueapple168/dotnet-uos/aspnet;8.0;uos
+    ./src/runtime-deps/8.0/uos/v20-1070a/amd64;blueapple168/dotnet-uos/runtime-deps;8.0;uos
+    ./src/runtime/8.0/uos/v20-1070a/amd64;blueapple168/dotnet-uos/runtime;8.0;uos
+    ./src/sdk/8.0/uos/v20-1070a/amd64;blueapple168/dotnet-uos/sdk;8.0;uos
+
 permissions:
   contents: read
   packages: write
   id-token: write
+
 jobs:
   discovery:
     runs-on: ubuntu-latest
@@ -44,19 +47,20 @@ jobs:
           EVENT="${{ github.event_name }}"
           REF_TYPE="${{ github.ref_type }}"
           TARGET_ITEMS=()
-          # read build list env
-          while IFS=';' read -r ctx repo tagname; do
+          # read build list env, now 4 fields: ctx;repo;tagname;osname
+          while IFS=';' read -r ctx repo tagname osname; do
             [[ -z "${ctx}" || -z "${repo}" || -z "${tagname}" ]] && continue
+            CTX_CLEAN="${ctx#./}"
             if [[ "${REF_TYPE}" == "tag" || "${EVENT}" == "workflow_dispatch" ]]; then
               # tag / manual trigger: add all
               TARGET_ITEMS+=("{\"context\":\"${ctx}\",\"repo\":\"${repo}\",\"tagname\":\"${tagname}\"}")
             else
-              # push/pr:只要该context目录下有任意文件变更就构建
+              # push/pr: check whether any file under this context directory changed
               MATCH=0
               while IFS= read -r file; do
                 [[ -z "${file}" ]] && continue
-                if [[ "${file}" == "${ctx}"/* ]]; then
-                  echo "✅ Directory changed: ${ctx} , changed file: ${file}"
+                if [[ "${file}" == "${CTX_CLEAN}"/* ]]; then
+                  echo "✅ Directory changed: ${CTX_CLEAN}, changed file: ${file}"
                   MATCH=1
                   break
                 fi
@@ -80,6 +84,7 @@ jobs:
           echo "should build: ${HAS_WORK}"
         env:
           BUILD_LIST: ${{ env.BUILD_LIST }}
+
   build:
     needs: discovery
     if: ${{ needs.discovery.outputs.has_work == 'true' }}
@@ -135,6 +140,7 @@ jobs:
         run: |
           IMG="${{ env.REGISTRY }}/${{ env.IMAGE_REPO }}:${{ env.IMG_TAG_NAME }}"
           echo "Built image: ${IMG}"
+          echo "With commit tag: ${IMG}-${{ github.sha }}"
           echo "Digest: ${{ steps.build-and-push.outputs.digest }}"
       - name: Validate amd64 container
         run: |
