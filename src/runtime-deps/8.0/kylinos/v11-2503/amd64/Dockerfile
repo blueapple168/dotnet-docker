@@ -17,7 +17,6 @@ RUN set -eux; \
     microdnf install -y \
         # 用户管理(useradd/groupadd)
         shadow \
-        # 证书/时区
         ca-certificates \
         tzdata \
         # .NET 核心依赖库
