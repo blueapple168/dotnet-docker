@@ -1,4 +1,4 @@
-ARG REPO=ghcr.io/blueapple168/dotnet-kylinos/aspnet-8.0:aspnet-8.0
+ARG REPO=ghcr.io/blueapple168/dotnet-kylinos/aspnet:8.0
 # Installer image
 FROM $REPO AS installer
 
