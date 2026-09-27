@@ -37,7 +37,9 @@ See [Hosting ASP.NET Core Images with Docker over HTTPS](https://github.com/blue
 
 ## 国产系统基础镜像的 .NET 镜像制作与发布
 
-本项目额外支持基于 **统信 UOS** 与 **麒麟 Kylin** 两种国产操作系统基础镜像，构建并发布 .NET 8.0 的 SDK / Runtime / ASP.NET Core / Runtime-Deps 镜像。
+本项目额外支持基于 **统信 UOS** 与 **麒麟 Kylin** 两种国产操作系统基础镜像，构建并发布 .NET 8.0 / 9.0 / 10.0 / 11.0 的 SDK / Runtime / ASP.NET Core 镜像（Runtime-Deps 仅维护 8.0 一份）。
+
+> 说明：`runtime-deps` 层只依赖操作系统、与 .NET 版本无关，因此仅保留 8.0 目录（`src/runtime-deps/8.0/{uos,kylinos}`）；9.0 / 10.0 / 11.0 的 Runtime 构建直接以 `runtime-deps:8.0` 为基础镜像。镜像的版本差异由上层 Runtime / ASP.NET / SDK 镜像体现。
 
 ### 支持的基础镜像
 
@@ -46,21 +48,63 @@ See [Hosting ASP.NET Core Images with Docker over HTTPS](https://github.com/blue
 | 统信 UOS (v20-1070a) | `registry.uniontech.com/uos-server-base/uos-server-20-1070a:latest` | amd64 |
 | 麒麟 Kylin (v11-2503) | `cr.kylinos.cn/kylin/kylin-server-minimal:v11-2503` | amd64 |
 
+### 支持的 .NET 版本
+
+| 系统 | Runtime-Deps | Runtime | ASP.NET | SDK |
+| --- | --- | --- | --- | --- |
+| 统信 UOS (v20-1070a) | 8.0 | 8.0 / 9.0 / 10.0 / 11.0 | 8.0 / 9.0 / 10.0 / 11.0 | 8.0 / 9.0 / 10.0 / 11.0 |
+| 麒麟 Kylin (v11-2503) | 8.0 | 8.0 / 9.0 / 10.0 / 11.0 | 8.0 / 9.0 / 10.0 / 11.0 | 8.0 / 9.0 / 10.0 / 11.0 |
+
+> runtime-deps 仅维护 8.0 一份（该层只依赖操作系统，与 .NET 版本无关），同时发布 `8.0` 与系统版本两类 Tag；9.0 / 10.0 / 11.0 的 Runtime 构建以系统版本 Tag（`uos-20-1070a` / `kylin-v11-2503`）作为基础镜像。
+
+各版本使用的 .NET / PowerShell 版本号（与上游 dotnet-docker 官方镜像保持一致）：
+
+| .NET 版本 | Runtime / ASP.NET Core | SDK | PowerShell |
+| --- | --- | --- | --- |
+| 8.0 | 8.0.31 | 8.0.425 | 7.4.20 |
+| 9.0 | 9.0.20 | 9.0.318 | 7.5.11 |
+| 10.0 | 10.0.12 | 10.0.401 | 7.6.6（SDK 新增 `dnx` 目录及 `/usr/bin/dnx`） |
+| 11.0 | 11.0.0-rc.1.26425.128 | 11.0.100-rc.1.26425.128 | 7.7.0-preview.2（含 `dnx`） |
+
+> 注意：10.0 / 11.0 起官方改为使用 `.tar.gz.sha512` 旁车校验文件（替代 `checksums/*-sha.txt`）；PowerShell 工具 ID 从 9.0 起改为 `PowerShell.Linux.x64`。9.0 / 10.0 / 11.0 的各层目录均按 8.0 相同结构创建：`src/<组件>/<版本>/{uos/v20-1070a,kylinos/v11-2503}/amd64/Dockerfile`。
+
 ### 构建清单（BUILD_LIST / Dockerfile 配置）
 
-构建与发布清单如下，格式为 `源路径;镜像仓库;Tag;系统变体`：
+构建与发布清单如下，格式为 `源路径;镜像仓库;Tag;系统变体`（runtime-deps 额外发布系统版本 Tag，与 `8.0` Tag 指向同一镜像）：
 
 ```
 BUILD_LIST: |
   ./src/aspnet/8.0/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/aspnet;8.0;kylinos
   ./src/runtime-deps/8.0/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/runtime-deps;8.0;kylinos
+  ./src/runtime-deps/8.0/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/runtime-deps;kylin-v11-2503;kylinos
   ./src/runtime/8.0/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/runtime;8.0;kylinos
   ./src/sdk/8.0/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/sdk;8.0;kylinos
   ./src/aspnet/8.0/uos/v20-1070a/amd64;blueapple168/dotnet-uos/aspnet;8.0;uos
   ./src/runtime-deps/8.0/uos/v20-1070a/amd64;blueapple168/dotnet-uos/runtime-deps;8.0;uos
+  ./src/runtime-deps/8.0/uos/v20-1070a/amd64;blueapple168/dotnet-uos/runtime-deps;uos-20-1070a;uos
   ./src/runtime/8.0/uos/v20-1070a/amd64;blueapple168/dotnet-uos/runtime;8.0;uos
   ./src/sdk/8.0/uos/v20-1070a/amd64;blueapple168/dotnet-uos/sdk;8.0;uos
+  ./src/runtime/9.0/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/runtime;9.0;kylinos
+  ./src/runtime/10.0/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/runtime;10.0;kylinos
+  ./src/runtime/11.0/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/runtime;11.0;kylinos
+  ./src/runtime/9.0/uos/v20-1070a/amd64;blueapple168/dotnet-uos/runtime;9.0;uos
+  ./src/runtime/10.0/uos/v20-1070a/amd64;blueapple168/dotnet-uos/runtime;10.0;uos
+  ./src/runtime/11.0/uos/v20-1070a/amd64;blueapple168/dotnet-uos/runtime;11.0;uos
+  ./src/aspnet/9.0/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/aspnet;9.0;kylinos
+  ./src/aspnet/10.0/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/aspnet;10.0;kylinos
+  ./src/aspnet/11.0/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/aspnet;11.0;kylinos
+  ./src/aspnet/9.0/uos/v20-1070a/amd64;blueapple168/dotnet-uos/aspnet;9.0;uos
+  ./src/aspnet/10.0/uos/v20-1070a/amd64;blueapple168/dotnet-uos/aspnet;10.0;uos
+  ./src/aspnet/11.0/uos/v20-1070a/amd64;blueapple168/dotnet-uos/aspnet;11.0;uos
+  ./src/sdk/9.0/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/sdk;9.0;kylinos
+  ./src/sdk/10.0/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/sdk;10.0;kylinos
+  ./src/sdk/11.0/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/sdk;11.0;kylinos
+  ./src/sdk/9.0/uos/v20-1070a/amd64;blueapple168/dotnet-uos/sdk;9.0;uos
+  ./src/sdk/10.0/uos/v20-1070a/amd64;blueapple168/dotnet-uos/sdk;10.0;uos
+  ./src/sdk/11.0/uos/v20-1070a/amd64;blueapple168/dotnet-uos/sdk;11.0;uos
 ```
+
+  > CI（`.github/workflows/docker-build-dotnet.yml`）按依赖层级串行构建：`runtime-deps` → `runtime` → `aspnet` → `sdk`，每层内部并行；共享构建步骤封装在 `.github/actions/build-image/action.yml`。
 
 ### Dockerfile 示例
 
@@ -98,26 +142,36 @@ RUN yum update \
 
 | 系统 | 镜像 | Tag |
 | --- | --- | --- |
-| 麒麟 Kylin | `ghcr.io/blueapple168/dotnet-kylinos/runtime-deps` | `8.0` |
-| 麒麟 Kylin | `ghcr.io/blueapple168/dotnet-kylinos/runtime` | `8.0` |
-| 麒麟 Kylin | `ghcr.io/blueapple168/dotnet-kylinos/aspnet` | `8.0` |
-| 麒麟 Kylin | `ghcr.io/blueapple168/dotnet-kylinos/sdk` | `8.0` |
-| 统信 UOS | `ghcr.io/blueapple168/dotnet-uos/runtime-deps` | `8.0` |
-| 统信 UOS | `ghcr.io/blueapple168/dotnet-uos/runtime` | `8.0` |
-| 统信 UOS | `ghcr.io/blueapple168/dotnet-uos/aspnet` | `8.0` |
-| 统信 UOS | `ghcr.io/blueapple168/dotnet-uos/sdk` | `8.0` |
+| 麒麟 Kylin | `ghcr.io/blueapple168/dotnet-kylinos/runtime-deps` | `8.0` / `kylin-v11-2503` |
+| 麒麟 Kylin | `ghcr.io/blueapple168/dotnet-kylinos/runtime` | `8.0` / `9.0` / `10.0` / `11.0` |
+| 麒麟 Kylin | `ghcr.io/blueapple168/dotnet-kylinos/aspnet` | `8.0` / `9.0` / `10.0` / `11.0` |
+| 麒麟 Kylin | `ghcr.io/blueapple168/dotnet-kylinos/sdk` | `8.0` / `9.0` / `10.0` / `11.0` |
+| 统信 UOS | `ghcr.io/blueapple168/dotnet-uos/runtime-deps` | `8.0` / `uos-20-1070a` |
+| 统信 UOS | `ghcr.io/blueapple168/dotnet-uos/runtime` | `8.0` / `9.0` / `10.0` / `11.0` |
+| 统信 UOS | `ghcr.io/blueapple168/dotnet-uos/aspnet` | `8.0` / `9.0` / `10.0` / `11.0` |
+| 统信 UOS | `ghcr.io/blueapple168/dotnet-uos/sdk` | `8.0` / `9.0` / `10.0` / `11.0` |
+
+> `runtime-deps` 的 `8.0` 与系统版本 Tag（`uos-20-1070a` / `kylin-v11-2503`）指向同一镜像；系统版本 Tag 突出该层只依赖操作系统、与 .NET 版本无关的特性，供 9.0 / 10.0 / 11.0 各层复用。
 
 镜像仓库说明：
 
 ```
-ghcr.io/blueapple168/dotnet-kylinos/runtime-deps:8.0   # 麒麟 runtime-deps（示例）
-ghcr.io/blueapple168/dotnet-kylinos/runtime:8.0        # 麒麟 runtime
-ghcr.io/blueapple168/dotnet-kylinos/aspnet:8.0         # 麒麟 aspnet
-ghcr.io/blueapple168/dotnet-kylinos/sdk:8.0            # 麒麟 sdk
-ghcr.io/blueapple168/dotnet-uos/runtime-deps:8.0       # 统信 runtime-deps
-ghcr.io/blueapple168/dotnet-uos/runtime:8.0            # 统信 runtime
-ghcr.io/blueapple168/dotnet-uos/aspnet:8.0             # 统信 aspnet
-ghcr.io/blueapple168/dotnet-uos/sdk:8.0                # 统信 sdk
+ghcr.io/blueapple168/dotnet-kylinos/runtime-deps:8.0             # 麒麟 runtime-deps
+ghcr.io/blueapple168/dotnet-kylinos/runtime-deps:kylin-v11-2503  # 麒麟 runtime-deps（与 8.0 同一镜像，系统版本 Tag）
+ghcr.io/blueapple168/dotnet-kylinos/runtime:8.0                  # 麒麟 runtime
+ghcr.io/blueapple168/dotnet-kylinos/runtime:9.0                  # 麒麟 runtime（基于 runtime-deps:kylin-v11-2503）
+ghcr.io/blueapple168/dotnet-kylinos/runtime:10.0                 # 麒麟 runtime（基于 runtime-deps:kylin-v11-2503）
+ghcr.io/blueapple168/dotnet-kylinos/runtime:11.0                 # 麒麟 runtime（基于 runtime-deps:kylin-v11-2503）
+ghcr.io/blueapple168/dotnet-kylinos/aspnet:8.0                   # 麒麟 aspnet
+ghcr.io/blueapple168/dotnet-kylinos/sdk:8.0                      # 麒麟 sdk
+ghcr.io/blueapple168/dotnet-uos/runtime-deps:8.0                 # 统信 runtime-deps
+ghcr.io/blueapple168/dotnet-uos/runtime-deps:uos-20-1070a        # 统信 runtime-deps（与 8.0 同一镜像，系统版本 Tag）
+ghcr.io/blueapple168/dotnet-uos/runtime:8.0                      # 统信 runtime
+ghcr.io/blueapple168/dotnet-uos/runtime:9.0                      # 统信 runtime（基于 runtime-deps:uos-20-1070a）
+ghcr.io/blueapple168/dotnet-uos/runtime:10.0                     # 统信 runtime（基于 runtime-deps:uos-20-1070a）
+ghcr.io/blueapple168/dotnet-uos/runtime:11.0                     # 统信 runtime（基于 runtime-deps:uos-20-1070a）
+ghcr.io/blueapple168/dotnet-uos/aspnet:8.0                       # 统信 aspnet
+ghcr.io/blueapple168/dotnet-uos/sdk:8.0                          # 统信 sdk
 ```
 
 ## Image Variants
