@@ -1,6 +1,5 @@
 # Set default behavior to automatically normalize line endings.
 * text=auto
-
 *.doc  diff=astextplain
 *.DOC	diff=astextplain
 *.docx	diff=astextplain
@@ -11,20 +10,20 @@
 *.PDF	diff=astextplain
 *.rtf	diff=astextplain
 *.RTF	diff=astextplain
-
 *.jpg  	binary
 *.png 	binary
 *.gif 	binary
-
 # Force bash scripts to always use lf line endings so that if a repo is accessed
 # in Unix via a file share from Windows, the scripts will work.
 *.in text eol=lf
 *.sh text eol=lf
-
+Dockerfile* text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
 # Likewise, force cmd and batch scripts to always use crlf
 *.cmd text eol=crlf
 *.bat text eol=crlf
-
+*.ps1 text eol=crlf
 *.cs text=auto diff=csharp
 *.vb text=auto
 *.resx text=auto
@@ -54,19 +53,16 @@
 *.fs text=auto
 *.fsx text=auto
 *.hs text=auto
-
 *.csproj text=auto
 *.vbproj text=auto
 *.fsproj text=auto
 *.dbproj text=auto
 *.slnx text=auto
 *.sln text=auto eol=crlf
-
 # Set linguist language for .h files explicitly based on
 # https://github.com/github/linguist/issues/1626#issuecomment-401442069
 # this only affects the repo's language statistics
 *.h linguist-language=C
-
 # CLR specific
 src/coreclr/src/pal/tests/palsuite/paltestlist.txt text eol=lf
 src/coreclr/src/pal/tests/palsuite/paltestlist_to_be_reviewed.txt text eol=lf
@@ -79,5 +75,4 @@ src/coreclr/tests/src/JIT/Performance/CodeQuality/BenchmarksGame/reverse-complem
 src/coreclr/tests/src/JIT/Performance/CodeQuality/BenchmarksGame/k-nucleotide/knucleotide-input.txt text eol=lf
 src/coreclr/tests/src/JIT/Performance/CodeQuality/BenchmarksGame/k-nucleotide/knucleotide-input-big.txt text eol=lf
 src/coreclr/tests/src/performance/Scenario/JitBench/Resources/word2vecnet.patch text eol=lf
-
 tests/Microsoft.DotNet.Docker.Tests/Baselines/** linguist-generated
