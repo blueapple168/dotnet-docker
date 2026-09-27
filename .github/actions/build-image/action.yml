@@ -10,6 +10,10 @@ inputs:
   tag_name:
     description: '主 Tag（如 9.0）'
     required: true
+  github_token:
+    description: '用于 GHCR 登录的 token（组合 action 内无法使用 secrets 上下文，需从工作流传入）'
+    required: false
+    default: ${{ github.token }}
 
 runs:
   using: 'composite'
@@ -30,7 +34,7 @@ runs:
       with:
         registry: ghcr.io
         username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
+        password: ${{ inputs.github_token }}
     - name: Extract metadata
       id: meta
       uses: docker/metadata-action@v5
