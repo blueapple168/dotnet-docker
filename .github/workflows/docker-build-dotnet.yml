@@ -143,6 +143,8 @@ jobs:
       matrix: ${{ fromJson(needs.discovery.outputs.priority_matrix) }}
       fail-fast: false
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
       - name: Build priority runtime-deps image
         uses: ./.github/actions/build-image
         with:
@@ -159,6 +161,8 @@ jobs:
       matrix: ${{ fromJson(needs.discovery.outputs.runtime_deps_matrix) }}
       fail-fast: false
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
       - name: Build runtime-deps image
         uses: ./.github/actions/build-image
         with:
@@ -175,6 +179,8 @@ jobs:
       matrix: ${{ fromJson(needs.discovery.outputs.runtime_matrix) }}
       fail-fast: false
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
       - name: Build runtime image
         uses: ./.github/actions/build-image
         with:
@@ -191,6 +197,8 @@ jobs:
       matrix: ${{ fromJson(needs.discovery.outputs.aspnet_matrix) }}
       fail-fast: false
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
       - name: Build aspnet image
         uses: ./.github/actions/build-image
         with:
@@ -207,6 +215,8 @@ jobs:
       matrix: ${{ fromJson(needs.discovery.outputs.sdk_matrix) }}
       fail-fast: false
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
       - name: Build sdk image
         uses: ./.github/actions/build-image
         with:
