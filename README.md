@@ -39,7 +39,34 @@ See [Hosting ASP.NET Core Images with Docker over HTTPS](https://github.com/blue
 
 本项目额外支持基于 **统信 UOS** 与 **麒麟 Kylin** 两种国产操作系统基础镜像，构建并发布 .NET 8.0 / 9.0 / 10.0 / 11.0 的 SDK / Runtime / ASP.NET Core 镜像（Runtime-Deps 仅维护 8.0 一份）。
 
-> 说明：`runtime-deps` 层只依赖操作系统、与 .NET 版本无关，因此仅保留 8.0 目录（`src/runtime-deps/8.0/{uos,kylinos}`）；9.0 / 10.0 / 11.0 的 Runtime 构建直接以 `runtime-deps:8.0` 为基础镜像。镜像的版本差异由上层 Runtime / ASP.NET / SDK 镜像体现。
+> 说明：`runtime-deps` 层只依赖操作系统、与 .NET 版本无关，因此仅保留 8.0 目录（`src/runtime-deps/8.0/{uos,kylinos}`）；9.0 / 10.0 / 11.0 的 Runtime 构建直接以 `runtime-deps` 系统版本 Tag 为基础镜像。镜像的版本差异由上层 Runtime / ASP.NET / SDK 镜像体现。
+
+### 变量化 Dockerfile（版本控制说明）
+
+Runtime / ASP.NET / SDK 的 Dockerfile 已**变量化**：每种组件每个操作系统只维护一份 Dockerfile，构建时通过 build-args 注入指定 .NET 版本，即可生成任意版本的镜像：
+
+```
+src/runtime/uos/v20-1070a/amd64/Dockerfile       # 统信 UOS runtime（变量化）
+src/runtime/kylinos/v11-2503/amd64/Dockerfile     # 麒麟 runtime（变量化）
+src/aspnet/uos/v20-1070a/amd64/Dockerfile         # 统信 UOS aspnet（变量化）
+src/aspnet/kylinos/v11-2503/amd64/Dockerfile      # 麒麟 aspnet（变量化）
+src/sdk/uos/v20-1070a/amd64/Dockerfile            # 统信 UOS sdk（变量化）
+src/sdk/kylinos/v11-2503/amd64/Dockerfile         # 麒麟 sdk（变量化）
+src/runtime-deps/8.0/{uos,kylinos}/...            # 不变量化（与 .NET 版本无关）
+```
+
+版本号的**单一事实来源**为 CI workflow（`.github/workflows/docker-build-dotnet.yml`）中的 `env.DOTNET_VERSIONS` 版本表（曾对比过仓库根 `.env`、四组件目录根分散存放两种方案：前者 `docker build` 不原生支持、需额外解析层；后者会拆散 runtime/aspnet/sdk 的版本对应关系，均不如集中定义简单）。新增或修改 .NET 版本只需在该表中增删一行，CI 会自动查表注入 build-args。
+
+各 Dockerfile 的 ARG 均设有默认值（9.0 系列），本地构建可用 `--build-arg` 覆盖生成任意版本镜像：
+
+```console
+# 本地构建示例：生成麒麟 10.0 runtime 镜像
+docker build \
+  --build-arg REPO=ghcr.io/blueapple168/dotnet-kylinos/runtime-deps:kylin-v11-2503 \
+  --build-arg DOTNET_VERSION=10.0.12 \
+  -t dotnet-kylinos/runtime:10.0 \
+  src/runtime/kylinos/v11-2503/amd64
+```
 
 ### 支持的基础镜像
 
@@ -66,45 +93,57 @@ See [Hosting ASP.NET Core Images with Docker over HTTPS](https://github.com/blue
 | 10.0 | 10.0.12 | 10.0.401 | 7.6.6（SDK 新增 `dnx` 目录及 `/usr/bin/dnx`） |
 | 11.0 | 11.0.0-rc.1.26425.128 | 11.0.100-rc.1.26425.128 | 7.7.0-preview.2（含 `dnx`） |
 
-> 注意：10.0 / 11.0 起官方改为使用 `.tar.gz.sha512` 旁车校验文件（替代 `checksums/*-sha.txt`）；PowerShell 工具 ID 从 9.0 起改为 `PowerShell.Linux.x64`。9.0 / 10.0 / 11.0 的各层目录均按 8.0 相同结构创建：`src/<组件>/<版本>/{uos/v20-1070a,kylinos/v11-2503}/amd64/Dockerfile`。
+> 注意：所有版本的 .NET 二进制包统一使用 `.tar.gz.sha512` 旁车校验文件；PowerShell 工具 ID 8.0 为 `PowerShell`、9.0 起为 `PowerShell.Linux.x64`；PowerShell 校验算法 8.0 ~ 10.0 为 sha256、11.0 为 sha512（以上差异均通过 build-args 变量控制，Dockerfile 中无需区分版本）。10.0 / 11.0 的 SDK 包含 `dnx` 目录，Dockerfile 内自动探测并创建 `/usr/bin/dnx` 符号链接。
 
-### 构建清单（BUILD_LIST / Dockerfile 配置）
+### 构建清单（BUILD_LIST / DOTNET_VERSIONS）
 
-构建与发布清单如下，格式为 `源路径;镜像仓库;Tag;系统变体`（runtime-deps 额外发布系统版本 Tag，与 `8.0` Tag 指向同一镜像）：
+构建与发布由 workflow 中的两份清单控制：
+
+**`DOTNET_VERSIONS` 版本表**（`major|runtime版本|sdk版本|PowerShell版本|PowerShell校验算法|PowerShell校验值|PowerShell包ID`）——CI 按主版本号查表，将具体版本号注入变量化 Dockerfile 的 build-args：
+
+```
+DOTNET_VERSIONS: |
+  8.0|8.0.31|8.0.425|7.4.20|sha256|350ba...e950|PowerShell
+  9.0|9.0.20|9.0.318|7.5.11|sha256|926e...7cd4|PowerShell.Linux.x64
+  10.0|10.0.12|10.0.401|7.6.6|sha256|4227...a0d8|PowerShell.Linux.x64
+  11.0|11.0.0-rc.1.26425.128|11.0.100-rc.1.26425.128|7.7.0-preview.2|sha512|0bfd...d6f|PowerShell.Linux.x64
+```
+
+**`BUILD_LIST` 构建清单**，格式为 `源路径;镜像仓库;Tag;系统变体`。runtime/aspnet/sdk 指向变量化 Dockerfile（无版本目录），同一 Dockerfile 按不同 Tag 构建出 4 个版本的镜像；runtime-deps 额外发布系统版本 Tag，与 `8.0` Tag 指向同一镜像：
 
 ```
 BUILD_LIST: |
-  ./src/aspnet/8.0/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/aspnet;8.0;kylinos
-  ./src/runtime-deps/8.0/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/runtime-deps;8.0;kylinos
   ./src/runtime-deps/8.0/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/runtime-deps;kylin-v11-2503;kylinos
-  ./src/runtime/8.0/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/runtime;8.0;kylinos
-  ./src/sdk/8.0/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/sdk;8.0;kylinos
-  ./src/aspnet/8.0/uos/v20-1070a/amd64;blueapple168/dotnet-uos/aspnet;8.0;uos
-  ./src/runtime-deps/8.0/uos/v20-1070a/amd64;blueapple168/dotnet-uos/runtime-deps;8.0;uos
+  ./src/runtime-deps/8.0/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/runtime-deps;8.0;kylinos
+  ./src/runtime/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/runtime;8.0;kylinos
+  ./src/aspnet/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/aspnet;8.0;kylinos
+  ./src/sdk/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/sdk;8.0;kylinos
+  ./src/runtime/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/runtime;9.0;kylinos
+  ./src/aspnet/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/aspnet;9.0;kylinos
+  ./src/sdk/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/sdk;9.0;kylinos
+  ./src/runtime/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/runtime;10.0;kylinos
+  ./src/aspnet/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/aspnet;10.0;kylinos
+  ./src/sdk/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/sdk;10.0;kylinos
+  ./src/runtime/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/runtime;11.0;kylinos
+  ./src/aspnet/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/aspnet;11.0;kylinos
+  ./src/sdk/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/sdk;11.0;kylinos
   ./src/runtime-deps/8.0/uos/v20-1070a/amd64;blueapple168/dotnet-uos/runtime-deps;uos-20-1070a;uos
-  ./src/runtime/8.0/uos/v20-1070a/amd64;blueapple168/dotnet-uos/runtime;8.0;uos
-  ./src/sdk/8.0/uos/v20-1070a/amd64;blueapple168/dotnet-uos/sdk;8.0;uos
-  ./src/runtime/9.0/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/runtime;9.0;kylinos
-  ./src/runtime/10.0/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/runtime;10.0;kylinos
-  ./src/runtime/11.0/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/runtime;11.0;kylinos
-  ./src/runtime/9.0/uos/v20-1070a/amd64;blueapple168/dotnet-uos/runtime;9.0;uos
-  ./src/runtime/10.0/uos/v20-1070a/amd64;blueapple168/dotnet-uos/runtime;10.0;uos
-  ./src/runtime/11.0/uos/v20-1070a/amd64;blueapple168/dotnet-uos/runtime;11.0;uos
-  ./src/aspnet/9.0/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/aspnet;9.0;kylinos
-  ./src/aspnet/10.0/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/aspnet;10.0;kylinos
-  ./src/aspnet/11.0/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/aspnet;11.0;kylinos
-  ./src/aspnet/9.0/uos/v20-1070a/amd64;blueapple168/dotnet-uos/aspnet;9.0;uos
-  ./src/aspnet/10.0/uos/v20-1070a/amd64;blueapple168/dotnet-uos/aspnet;10.0;uos
-  ./src/aspnet/11.0/uos/v20-1070a/amd64;blueapple168/dotnet-uos/aspnet;11.0;uos
-  ./src/sdk/9.0/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/sdk;9.0;kylinos
-  ./src/sdk/10.0/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/sdk;10.0;kylinos
-  ./src/sdk/11.0/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/sdk;11.0;kylinos
-  ./src/sdk/9.0/uos/v20-1070a/amd64;blueapple168/dotnet-uos/sdk;9.0;uos
-  ./src/sdk/10.0/uos/v20-1070a/amd64;blueapple168/dotnet-uos/sdk;10.0;uos
-  ./src/sdk/11.0/uos/v20-1070a/amd64;blueapple168/dotnet-uos/sdk;11.0;uos
+  ./src/runtime-deps/8.0/uos/v20-1070a/amd64;blueapple168/dotnet-uos/runtime-deps;8.0;uos
+  ./src/runtime/uos/v20-1070a/amd64;blueapple168/dotnet-uos/runtime;8.0;uos
+  ./src/aspnet/uos/v20-1070a/amd64;blueapple168/dotnet-uos/aspnet;8.0;uos
+  ./src/sdk/uos/v20-1070a/amd64;blueapple168/dotnet-uos/sdk;8.0;uos
+  ./src/runtime/uos/v20-1070a/amd64;blueapple168/dotnet-uos/runtime;9.0;uos
+  ./src/aspnet/uos/v20-1070a/amd64;blueapple168/dotnet-uos/aspnet;9.0;uos
+  ./src/sdk/uos/v20-1070a/amd64;blueapple168/dotnet-uos/sdk;9.0;uos
+  ./src/runtime/uos/v20-1070a/amd64;blueapple168/dotnet-uos/runtime;10.0;uos
+  ./src/aspnet/uos/v20-1070a/amd64;blueapple168/dotnet-uos/aspnet;10.0;uos
+  ./src/sdk/uos/v20-1070a/amd64;blueapple168/dotnet-uos/sdk;10.0;uos
+  ./src/runtime/uos/v20-1070a/amd64;blueapple168/dotnet-uos/runtime;11.0;uos
+  ./src/aspnet/uos/v20-1070a/amd64;blueapple168/dotnet-uos/aspnet;11.0;uos
+  ./src/sdk/uos/v20-1070a/amd64;blueapple168/dotnet-uos/sdk;11.0;uos
 ```
 
-  > CI（`.github/workflows/docker-build-dotnet.yml`）按依赖层级串行构建：`runtime-deps` → `runtime` → `aspnet` → `sdk`，每层内部并行；共享构建步骤封装在 `.github/actions/build-image/action.yml`。
+  > CI（`.github/workflows/docker-build-dotnet.yml`）按依赖层级串行构建：**优先**构建系统版本 Tag 的 `runtime-deps`（`uos-20-1070a` / `kylin-v11-2503`）→ 其余 `runtime-deps` → `runtime` → `aspnet` → `sdk`，每层内部并行；discovery job 负责变更检测、按 `DOTNET_VERSIONS` 查表注入 build-args；共享构建步骤封装在 `.github/actions/build-image/action.yml`（新增 `build_args` 输入透传给 docker build）。
 
 ### Dockerfile 示例
 

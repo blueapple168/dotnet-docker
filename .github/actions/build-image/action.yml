@@ -2,7 +2,7 @@ name: 'Build and push dotnet image'
 description: '构建并推送单个 dotnet 国产系统镜像（含校验与签名）'
 inputs:
   context:
-    description: '构建上下文目录（如 ./src/runtime/9.0/uos/v20-1070a/amd64）'
+    description: '构建上下文目录（如 ./src/runtime/uos/v20-1070a/amd64）'
     required: true
   image_repo:
     description: '镜像仓库（如 blueapple168/dotnet-uos/runtime）'
@@ -10,6 +10,10 @@ inputs:
   tag_name:
     description: '主 Tag（如 9.0）'
     required: true
+  build_args:
+    description: '多行 build-args 字符串（如 REPO=... \n DOTNET_VERSION=...），透传给 docker build'
+    required: false
+    default: ''
   github_token:
     description: '用于 GHCR 登录的 token（组合 action 内无法使用 secrets 上下文，需从工作流传入）'
     required: false
@@ -53,8 +57,7 @@ runs:
         tags: ${{ steps.meta.outputs.tags }}
         cache-from: type=registry,ref=ghcr.io/${{ inputs.image_repo }}:buildcache
         cache-to: type=registry,ref=ghcr.io/${{ inputs.image_repo }}:buildcache,mode=max
-        build-args: |
-          BUILDKIT_PROGRESS=plain
+        build-args: ${{ inputs.build_args }}
     - name: Print built image info
       shell: bash
       run: |

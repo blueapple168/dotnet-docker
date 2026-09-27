@@ -10,38 +10,48 @@ on:
 env:
   REGISTRY: ghcr.io
   PLATFORMS: linux/amd64
+  # ===== 版本变量化配置（单一事实来源）=====
+  # Dockerfile 已变量化（src/{runtime,aspnet,sdk}/{uos,kylinos}/...，无版本目录），
+  # 构建时按 major 版本从下表查出具体版本号注入 build-args。
+  # 字段：major|runtime/aspnet版本|sdk版本|PowerShell版本|PowerShell校验算法|PowerShell校验值|PowerShell包ID
+  DOTNET_VERSIONS: |
+    8.0|8.0.31|8.0.425|7.4.20|sha256|350ba631e875380dc4dd596777e870a0dddd26c1d2ea5247e84eed020a77e950|PowerShell
+    9.0|9.0.20|9.0.318|7.5.11|sha256|926e1abb27219b7f21bd1408fc0558d0b8c14eee5f505ca407ed71a1e1457cd4|PowerShell.Linux.x64
+    10.0|10.0.12|10.0.401|7.6.6|sha256|4227dacda5fd8817655a0aecd92b7ee923d915a98083fae0e46e31e5c125a0d8|PowerShell.Linux.x64
+    11.0|11.0.0-rc.1.26425.128|11.0.100-rc.1.26425.128|7.7.0-preview.2|sha512|0bfdb2cb425e9dc45ce824746b9c686e0cfebe76e02918c3e09663cfb6d7c8a1fb9a8f983b61a30627ab5c48001e5e778ce30e977ce246bf6f48ac09f550bd6f|PowerShell.Linux.x64
   # context目录 ; 镜像repo ; 主tag(版本，src下的版本如8.0) ; os名称仅用于区分repo
-  # runtime-deps 仅维护 8.0 一份，同时发布 8.0 与系统版本 Tag（同镜像）
+  # runtime-deps 仅维护 8.0 一份，同时发布 8.0 与系统版本 Tag（同镜像），不参与版本变量化
+  # runtime/aspnet/sdk 的 context 为变量化 Dockerfile（无版本目录），版本号由 DOTNET_VERSIONS 注入
   # 构建顺序：优先系统版本 Tag 的 runtime-deps -> 其余 runtime-deps -> runtime -> aspnet -> sdk
   BUILD_LIST: |
-    ./src/aspnet/8.0/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/aspnet;8.0;kylinos
-    ./src/runtime-deps/8.0/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/runtime-deps;8.0;kylinos
     ./src/runtime-deps/8.0/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/runtime-deps;kylin-v11-2503;kylinos
-    ./src/runtime/8.0/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/runtime;8.0;kylinos
-    ./src/sdk/8.0/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/sdk;8.0;kylinos
-    ./src/aspnet/8.0/uos/v20-1070a/amd64;blueapple168/dotnet-uos/aspnet;8.0;uos
-    ./src/runtime-deps/8.0/uos/v20-1070a/amd64;blueapple168/dotnet-uos/runtime-deps;8.0;uos
+    ./src/runtime-deps/8.0/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/runtime-deps;8.0;kylinos
+    ./src/runtime/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/runtime;8.0;kylinos
+    ./src/aspnet/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/aspnet;8.0;kylinos
+    ./src/sdk/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/sdk;8.0;kylinos
+    ./src/runtime/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/runtime;9.0;kylinos
+    ./src/aspnet/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/aspnet;9.0;kylinos
+    ./src/sdk/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/sdk;9.0;kylinos
+    ./src/runtime/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/runtime;10.0;kylinos
+    ./src/aspnet/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/aspnet;10.0;kylinos
+    ./src/sdk/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/sdk;10.0;kylinos
+    ./src/runtime/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/runtime;11.0;kylinos
+    ./src/aspnet/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/aspnet;11.0;kylinos
+    ./src/sdk/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/sdk;11.0;kylinos
     ./src/runtime-deps/8.0/uos/v20-1070a/amd64;blueapple168/dotnet-uos/runtime-deps;uos-20-1070a;uos
-    ./src/runtime/8.0/uos/v20-1070a/amd64;blueapple168/dotnet-uos/runtime;8.0;uos
-    ./src/sdk/8.0/uos/v20-1070a/amd64;blueapple168/dotnet-uos/sdk;8.0;uos
-    ./src/runtime/9.0/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/runtime;9.0;kylinos
-    ./src/aspnet/9.0/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/aspnet;9.0;kylinos
-    ./src/sdk/9.0/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/sdk;9.0;kylinos
-    ./src/runtime/10.0/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/runtime;10.0;kylinos
-    ./src/aspnet/10.0/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/aspnet;10.0;kylinos
-    ./src/sdk/10.0/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/sdk;10.0;kylinos
-    ./src/runtime/11.0/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/runtime;11.0;kylinos
-    ./src/aspnet/11.0/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/aspnet;11.0;kylinos
-    ./src/sdk/11.0/kylinos/v11-2503/amd64;blueapple168/dotnet-kylinos/sdk;11.0;kylinos
-    ./src/runtime/9.0/uos/v20-1070a/amd64;blueapple168/dotnet-uos/runtime;9.0;uos
-    ./src/aspnet/9.0/uos/v20-1070a/amd64;blueapple168/dotnet-uos/aspnet;9.0;uos
-    ./src/sdk/9.0/uos/v20-1070a/amd64;blueapple168/dotnet-uos/sdk;9.0;uos
-    ./src/runtime/10.0/uos/v20-1070a/amd64;blueapple168/dotnet-uos/runtime;10.0;uos
-    ./src/aspnet/10.0/uos/v20-1070a/amd64;blueapple168/dotnet-uos/aspnet;10.0;uos
-    ./src/sdk/10.0/uos/v20-1070a/amd64;blueapple168/dotnet-uos/sdk;10.0;uos
-    ./src/runtime/11.0/uos/v20-1070a/amd64;blueapple168/dotnet-uos/runtime;11.0;uos
-    ./src/aspnet/11.0/uos/v20-1070a/amd64;blueapple168/dotnet-uos/aspnet;11.0;uos
-    ./src/sdk/11.0/uos/v20-1070a/amd64;blueapple168/dotnet-uos/sdk;11.0;uos
+    ./src/runtime-deps/8.0/uos/v20-1070a/amd64;blueapple168/dotnet-uos/runtime-deps;8.0;uos
+    ./src/runtime/uos/v20-1070a/amd64;blueapple168/dotnet-uos/runtime;8.0;uos
+    ./src/aspnet/uos/v20-1070a/amd64;blueapple168/dotnet-uos/aspnet;8.0;uos
+    ./src/sdk/uos/v20-1070a/amd64;blueapple168/dotnet-uos/sdk;8.0;uos
+    ./src/runtime/uos/v20-1070a/amd64;blueapple168/dotnet-uos/runtime;9.0;uos
+    ./src/aspnet/uos/v20-1070a/amd64;blueapple168/dotnet-uos/aspnet;9.0;uos
+    ./src/sdk/uos/v20-1070a/amd64;blueapple168/dotnet-uos/sdk;9.0;uos
+    ./src/runtime/uos/v20-1070a/amd64;blueapple168/dotnet-uos/runtime;10.0;uos
+    ./src/aspnet/uos/v20-1070a/amd64;blueapple168/dotnet-uos/aspnet;10.0;uos
+    ./src/sdk/uos/v20-1070a/amd64;blueapple168/dotnet-uos/sdk;10.0;uos
+    ./src/runtime/uos/v20-1070a/amd64;blueapple168/dotnet-uos/runtime;11.0;uos
+    ./src/aspnet/uos/v20-1070a/amd64;blueapple168/dotnet-uos/aspnet;11.0;uos
+    ./src/sdk/uos/v20-1070a/amd64;blueapple168/dotnet-uos/sdk;11.0;uos
 
 permissions:
   contents: read
@@ -78,6 +88,42 @@ jobs:
           REF_TYPE="${{ github.ref_type }}"
           # 最优先构建的 runtime-deps 系统版本 Tag（供 9.0/10.0/11.0 各层复用）
           PRIORITY_TAGS="uos-20-1070a kylin-v11-2503"
+          # 按 major 版本从 DOTNET_VERSIONS 表生成 build-args（含 \n JSON 转义，供 matrix 传递）
+          gen_buildargs() {
+            local layer="$1" repo="$2" osname="$3" major="$4"
+            local row
+            row=$(echo "$DOTNET_VERSIONS" | awk -F'|' -v m="$major" '$1==m {print; exit}')
+            if [[ -z "$row" ]]; then
+              echo "⚠️ DOTNET_VERSIONS 未定义 ${major}，使用 Dockerfile ARG 默认值" >&2
+              return 0
+            fi
+            local rt_ver sdk_ver ps_ver ps_algo ps_csum ps_pkg
+            rt_ver=$(echo "$row" | cut -d'|' -f2)
+            sdk_ver=$(echo "$row" | cut -d'|' -f3)
+            ps_ver=$(echo "$row" | cut -d'|' -f4)
+            ps_algo=$(echo "$row" | cut -d'|' -f5)
+            ps_csum=$(echo "$row" | cut -d'|' -f6)
+            ps_pkg=$(echo "$row" | cut -d'|' -f7)
+            local ns sys_tag
+            ns="${repo%/*}"
+            case "$osname" in
+              uos) sys_tag="uos-20-1070a" ;;
+              kylinos) sys_tag="kylin-v11-2503" ;;
+              *) sys_tag="8.0" ;;
+            esac
+            case "$layer" in
+              runtime)
+                printf 'REPO=ghcr.io/%s/runtime-deps:%s\\\\nDOTNET_VERSION=%s' "$ns" "$sys_tag" "$rt_ver"
+                ;;
+              aspnet)
+                printf 'REPO=ghcr.io/%s/runtime:%s\\\\nASPNET_VERSION=%s' "$ns" "$major" "$rt_ver"
+                ;;
+              sdk)
+                printf 'REPO=ghcr.io/%s/aspnet:%s\\\\nDOTNET_SDK_VERSION=%s\\\\nPOWERSHELL_VERSION=%s\\\\nPOWERSHELL_CHECKSUM=%s\\\\nPOWERSHELL_CHECKSUM_ALGO=%s\\\\nPOWERSHELL_PACKAGE_ID=%s' \
+                  "$ns" "$major" "$sdk_ver" "$ps_ver" "$ps_csum" "$ps_algo" "$ps_pkg"
+                ;;
+            esac
+          }
           # 按层级收集待构建镜像：runtime-deps / runtime / aspnet / sdk
           declare -A LAYER_ITEMS
           PRIORITY_ITEMS=""
@@ -105,7 +151,14 @@ jobs:
                 # 优先项：系统版本 Tag 的 runtime-deps，单独收集，最优先构建
                 PRIORITY_ITEMS+="{\"context\":\"${ctx}\",\"repo\":\"${repo}\",\"tagname\":\"${tagname}\"}\n"
               else
-                LAYER_ITEMS["${layer}"]+="{\"context\":\"${ctx}\",\"repo\":\"${repo}\",\"tagname\":\"${tagname}\"}\n"
+                # 变量化层：按版本表注入 build-args；runtime-deps 不需要
+                BUILDARGS=""
+                case "${layer}" in
+                  runtime|aspnet|sdk)
+                    BUILDARGS=$(gen_buildargs "${layer}" "${repo}" "${osname}" "${tagname}")
+                    ;;
+                esac
+                LAYER_ITEMS["${layer}"]+="{\"context\":\"${ctx}\",\"repo\":\"${repo}\",\"tagname\":\"${tagname}\"${BUILDARGS:+,\"buildargs\":\"${BUILDARGS}\"}}\n"
               fi
             fi
           done <<< "$BUILD_LIST"
@@ -131,6 +184,7 @@ jobs:
           done
         env:
           BUILD_LIST: ${{ env.BUILD_LIST }}
+          DOTNET_VERSIONS: ${{ env.DOTNET_VERSIONS }}
 
   # ---------- 第 0 层（最优先）：runtime-deps 系统版本 Tag ----------
   # ghcr.io/blueapple168/dotnet-uos/runtime-deps:uos-20-1070a
@@ -187,6 +241,7 @@ jobs:
           context: ${{ matrix.build.context }}
           image_repo: ${{ matrix.build.repo }}
           tag_name: ${{ matrix.build.tagname }}
+          build_args: ${{ matrix.build.buildargs }}
 
   # ---------- 第 3 层：aspnet（基于 runtime） ----------
   build-aspnet:
@@ -205,6 +260,7 @@ jobs:
           context: ${{ matrix.build.context }}
           image_repo: ${{ matrix.build.repo }}
           tag_name: ${{ matrix.build.tagname }}
+          build_args: ${{ matrix.build.buildargs }}
 
   # ---------- 第 4 层：sdk（基于 aspnet） ----------
   build-sdk:
@@ -223,3 +279,4 @@ jobs:
           context: ${{ matrix.build.context }}
           image_repo: ${{ matrix.build.repo }}
           tag_name: ${{ matrix.build.tagname }}
+          build_args: ${{ matrix.build.buildargs }}
